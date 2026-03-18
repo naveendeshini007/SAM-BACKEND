@@ -1,0 +1,10 @@
+# Environment
+venv/
+__pycache__/
+*.pyc
+.env
+.env.local
+.env.*.local
+.pytest_cache/
+alembic/versions/*.pyc
+!.env.example
