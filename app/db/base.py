@@ -1,7 +1,4 @@
-from sqlalchemy.orm import declarative_base
+from sqlalchemy.orm import DeclarativeBase
 
-Base = declarative_base()
-
-# Import all models here for Alembic
-
-from app.models.admin import Admin
+class Base(DeclarativeBase):
+    pass
