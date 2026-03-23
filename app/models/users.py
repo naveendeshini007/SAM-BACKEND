@@ -43,4 +43,4 @@ class Users(Base):
         Index("idx_users_created_by", "created_by_admin_id"),
     )
 
-    created_by_admin = relationship("Admin")
+    created_by_admin = relationship("Admins")
