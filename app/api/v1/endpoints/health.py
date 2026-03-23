@@ -5,7 +5,7 @@ router = APIRouter()
 
 
 @router.get("/")
-async def health_check():
+def health_check():
     return {
         "status": "ok",
         "service": "SAM Backend",
