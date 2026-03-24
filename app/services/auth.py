@@ -26,8 +26,8 @@ async def authenticate_and_login(db: AsyncSession, username_or_email: str, passw
         admin = check.scalars().first()
         user = None
         if not admin:
-            q2 = await db.execute(select(Users).where((Users.username == username_or_email) | (Users.email == username_or_email)))
-            user = q2.scalars().first()
+            check_non_admin = await db.execute(select(Users).where((Users.username == username_or_email) | (Users.email == username_or_email)))
+            user = check_non_admin.scalars().first()
 
         target = admin or user
         if not target:

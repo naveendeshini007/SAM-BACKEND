@@ -71,12 +71,12 @@ async def change_password(
             if not req.username_or_email or not req.old_password:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="username_or_email and old_password are required for first-time password reset")
             # find principal by username_or_email
-            q = await db.execute(select(Admins).where((Admins.username == req.username_or_email) | (Admins.email == req.username_or_email)))
-            admin = q.scalars().first()
+            check = await db.execute(select(Admins).where((Admins.username == req.username_or_email) | (Admins.email == req.username_or_email)))
+            admin = check.scalars().first()
             user = None
             if not admin:
-                q2 = await db.execute(select(Users).where((Users.username == req.username_or_email) | (Users.email == req.username_or_email)))
-                user = q2.scalars().first()
+                check_non_admin = await db.execute(select(Users).where((Users.username == req.username_or_email) | (Users.email == req.username_or_email)))
+                user = check_non_admin.scalars().first()
 
             target = admin or user
             if not target:
