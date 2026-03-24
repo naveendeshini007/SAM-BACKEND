@@ -1,6 +1,7 @@
 import uuid
 
 from sqlalchemy import Boolean, DateTime, Index, String, Text, func
+from sqlalchemy import Integer
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -60,6 +61,9 @@ class Admins(Base):
         server_default=func.now(),
         onupdate=func.now(),
     )
+
+    # token rotation/version for refresh token rotation
+    token_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
 
     __table_args__ = (
         Index("idx_admins_email", "email"),

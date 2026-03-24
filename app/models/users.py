@@ -1,6 +1,7 @@
 import uuid
 
 from sqlalchemy import Boolean, DateTime, Index, String, Text, ForeignKey
+from sqlalchemy import Integer
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
@@ -36,6 +37,9 @@ class Users(Base):
     updated_at: Mapped[DateTime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
     )
+
+    # token rotation/version for refresh token rotation
+    token_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
 
     __table_args__ = (
         Index("idx_users_email", "email"),
