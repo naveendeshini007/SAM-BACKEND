@@ -1,51 +1,127 @@
-from sqlalchemy import select
+from sqlalchemy import select, or_, func
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import SQLAlchemyError
+from fastapi import HTTPException
+from math import ceil
+
 from app.models.sam_data import SamData
 
 
-# GET API
-async def get_sam_data(
-    db: AsyncSession,
-    skip: int = 0,
-    limit: int = 50
-):
-    query = select(SamData).offset(skip).limit(limit)
-    result = await db.execute(query)
-    return result.scalars().all()
+class SamDataService:
 
-
-# FILTER API
-async def filter_sam_data(
-    db: AsyncSession,
-    filters: dict,
-    skip: int = 0,
-    limit: int = 50
-):
-    query = select(SamData)
-
-    for key, value in filters.items():
-        if hasattr(SamData, key) and value is not None:
-            query = query.where(getattr(SamData, key) == value)
-
-    query = query.offset(skip).limit(limit)
-
-    result = await db.execute(query)
-    return result.scalars().all()
-
-#SEARCH API
-async def search_sam_data(
+    @staticmethod
+    async def get_organizations(
         db: AsyncSession,
-        query_str: str,
-        skip: int = 0,
-        limit: int = 50
-):
-    query = select(SamData).where(
-            SamData.C1.ilike(f"%{query_str}"),
-            SamData.C2.ilike(f"%{query_str}%"),
-            SamData.C3.ilike(f"%{query_str}%")
-    )
+        page: int = 1,
+        limit: int = 10,
+        search: str = None,
+        state: str = None,
+        year: int = None,
+        month: int = None
+    ):
+        try:
+            # Input validation
+            if page < 1:
+                raise HTTPException(status_code=400, detail="Page must be >= 1")
 
-    query = query.offset(skip).limit(limit)
+            if limit < 1 or limit > 100:
+                raise HTTPException(status_code=400, detail="Limit must be between 1 and 100")
 
-    result = await db.execute(query)
-    return result.scalars().all()
+            query = select(SamData)
+
+            # 🔍 Search
+            if search:
+                query = query.where(
+                    or_(
+                        SamData.organization_name.ilike(f"%{search}%"),
+                        SamData.city.ilike(f"%{search}%"),
+                        SamData.state.ilike(f"%{search}%")
+                    )
+                )
+
+            #  Filter (state)
+            if state:
+                query = query.where(SamData.state == state)
+
+            # Year filter
+            if year:
+                query = query.where(
+                    SamData.registration_date.startswith(str(year))
+                )
+
+            # Month filter
+            if month:
+                query = query.where(
+                    SamData.registration_date[4:6] == f"{month:02d}"
+                )
+
+            #  Efficient total count (NO full data load)
+            count_query = select(func.count()).select_from(SamData)
+            total = (await db.execute(count_query)).scalar()
+
+            #  Pagination
+            skip = (page - 1) * limit
+            query = query.offset(skip).limit(limit)
+
+            result = await db.execute(query)
+            data = result.scalars().all()
+
+            # Total pages
+            total_pages = ceil(total / limit) if limit else 1
+
+            return {
+                "total": total,
+                "page": page,
+                "limit": limit,
+                "total_pages": total_pages,
+                "data": data
+            }
+
+        except HTTPException:
+            raise
+
+        except SQLAlchemyError as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Database error: {str(e)}"
+            )
+
+        except Exception as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Unexpected error: {str(e)}"
+            )
+
+    @staticmethod
+    async def get_organization_by_id(
+        db: AsyncSession,
+        record_id: str
+    ):
+        try:
+            query = select(SamData).where(SamData.record_id == record_id)
+            result = await db.execute(query)
+
+            org = result.scalar_one_or_none()
+
+            if not org:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Organization not found"
+                )
+
+            return org
+
+        except HTTPException:
+            raise
+
+        except SQLAlchemyError as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Database error: {str(e)}"
+            )
+
+        except Exception as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Unexpected error: {str(e)}"
+            )
