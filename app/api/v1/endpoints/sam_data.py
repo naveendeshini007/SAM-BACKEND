@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
 
 # correct import path
-from app.api.v1.services.sam_data_service import (
+from app.services.sam_data_service import (
     get_sam_data,
     filter_sam_data,
     search_sam_data)
