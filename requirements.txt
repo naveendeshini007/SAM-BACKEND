@@ -38,3 +38,5 @@ python-multipart==0.0.6
 pydantic-settings==2.13.1
 psycopg2-binary==2.9.11
 python-multipart==0.0.6
+pydantic-settings==2.13.1
+psycopg2-binary==2.9.11
