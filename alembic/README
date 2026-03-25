@@ -1,10 +1,10 @@
 <!-- Below are the commands to create the migrations -->
- 
-1.Creates a new migration script (also called a "revision") in your alembic/versions/ folder.The file gets a unique revision ID
- 
-alembic revision --autogenerate -m "create admins table"
- 
- 
-2.Applies (runs) all pending migrations in the correct order — from the current database state up to the latest revision (called head).
 
+1.Creates a new migration script (also called a "revision") in your alembic/versions/ folder.The file gets a unique revision ID
+
+alembic revision --autogenerate -m "create admins table"
+
+
+2.Applies (runs) all pending migrations in the correct order — from the current database state up to the latest revision (called head).
+ 
 alembic upgrade head
