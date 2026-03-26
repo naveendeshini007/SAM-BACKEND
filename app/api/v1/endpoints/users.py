@@ -1,10 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import insert, select
+from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_db, get_current_admin
-from app.services.users import create_user_service, list_auth_events
+from app.services.users import create_user_service, list_auth_events, list_users_service, get_user_service, soft_delete_user_service
 from app.schemas.users import UserCreate
-from fastapi import HTTPException, status
 
 
 router = APIRouter()
@@ -31,8 +30,47 @@ async def create_user(
 
 
 @router.get("/events")
-async def list_events(admin=Depends(get_current_admin), db: AsyncSession = Depends(get_db)):
+async def list_events(
+    admin=Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+    limit: int = Query(100, ge=1, description="Max number of events to return"),
+    offset: int = Query(0, ge=0, description="Number of events to skip"),
+    search_query: Optional[str] = Query(None, description="Search query matching event_type or partial note text"),
+):
     try:
-        return await list_auth_events(db)
+        return await list_auth_events(db, limit=limit, offset=offset, search_query=search_query)
+    except RuntimeError as exception:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exception))
+
+
+@router.get("/")
+async def list_users(
+    admin=Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+    limit: int = Query(100, ge=1, description="Max number of users to return"),
+    offset: int = Query(0, ge=0, description="Number of users to skip"),
+    search_query: Optional[str] = Query(None, description="Search query matching name, username or email"),
+):
+    try:
+        return await list_users_service(db, limit=limit, offset=offset, search_query=search_query)
+    except RuntimeError as exception:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exception))
+
+
+@router.get("/{user_id}")
+async def get_user(user_id: str, admin=Depends(get_current_admin), db: AsyncSession = Depends(get_db)):
+    try:
+        user = await get_user_service(db, user_id)
+        if not user:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        return user
+    except RuntimeError as exception:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exception))
+
+
+@router.delete("/{user_id}")
+async def deactivate_user(user_id: str, admin=Depends(get_current_admin), db: AsyncSession = Depends(get_db)):
+    try:
+        return await soft_delete_user_service(db, admin, user_id)
     except RuntimeError as exception:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exception))
