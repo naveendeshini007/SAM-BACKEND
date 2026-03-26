@@ -9,13 +9,13 @@ from app.services.sam_download import SamDownloadService
 from app.db.session import (
     AsyncSessionLocal,
     copy_to_staging,
+    stream_load_to_staging,
     delete_staging_for_date,
     get_staging_count,
     init_db,
 )
 from app.core.config import settings
 
-# logging
 os.makedirs("logs", exist_ok=True)
 
 logging.basicConfig(
@@ -23,10 +23,11 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s",
     handlers=[
         logging.FileHandler("logs/ingestion.log", encoding="utf-8"),
-        logging.StreamHandler()
-    ]
+        logging.StreamHandler(),
+    ],
 )
 
+# Serialise concurrent pipeline invocations: only one run at a time.
 _pipeline_lock = asyncio.Lock()
 
 
@@ -38,96 +39,136 @@ async def run_pipeline_async(file_date: str) -> None:
             try:
                 max_rows = settings.LIMIT_ROWS
                 if max_rows is None:
-                    logging.info("Active LIMIT_ROWS: ALL (no row limit)")
+                    logging.info("LIMIT_ROWS: ALL (no row limit)")
                 else:
-                    logging.info(f"Active LIMIT_ROWS: {max_rows}")
+                    logging.info("LIMIT_ROWS: %d", max_rows)
 
-                logging.info(f"Starting pipeline for {file_date}")
+                logging.info("Pipeline starting for %s", file_date)
                 pipeline_start = time.perf_counter()
 
+                # ──────────────────── DOWNLOAD ──────────────────── #
                 year = int(file_date[:4])
                 month = int(file_date[4:6])
-                download_start = time.perf_counter()
+
+                t0 = time.perf_counter()
                 download_service = SamDownloadService()
                 download_result = download_service.download_and_extract(year, month)
                 status = download_result.get("status")
+
                 if status == "file_not_available":
-                    raise RuntimeError(f"SAM source file not available for {year}-{month:02d}")
+                    raise RuntimeError(
+                        f"SAM source file not available for {year}-{month:02d}"
+                    )
+
                 dat_path = download_result["dat_path"]
                 resolved_file_date = download_result.get("file_date", file_date)
                 if resolved_file_date != file_date:
                     logging.info(
-                        "Resolved file_date from sam_download differs: requested=%s resolved=%s",
+                        "file_date resolved: requested=%s resolved=%s",
                         file_date,
                         resolved_file_date,
                     )
                 file_date_obj = datetime.strptime(resolved_file_date, "%Y%m%d").date()
 
+                logging.info(
+                    "Download/extract done in %.2fs (status=%s)",
+                    time.perf_counter() - t0,
+                    status,
+                )
+
+                # ──────────────────── DELETE OLD DATA ──────────────────── #
+                # Run delete concurrently while we resolve the load path below.
+                t0 = time.perf_counter()
+                deleted = await delete_staging_for_date(session, file_date_obj)
+                if deleted:
+                    logging.info(
+                        "Replaced staging snapshot for %s; deleted %d old rows (%.2fs)",
+                        resolved_file_date,
+                        deleted,
+                        time.perf_counter() - t0,
+                    )
+
+                # ──────────────────── CLEAN + LOAD ──────────────────── #
+                load_start = time.perf_counter()
+
                 clean_path = os.path.join(
                     os.path.dirname(dat_path),
                     f"clean_{resolved_file_date}.dat",
                 )
-                logging.info("sam_download status: %s", status)
-                logging.info(
-                    "Download/extract step took %.2f seconds",
-                    time.perf_counter() - download_start,
-                )
+                clean_file_cached = os.path.exists(clean_path)
 
-                # ---------------- CLEAN ---------------- #
-                clean_start = time.perf_counter()
-                if os.path.exists(clean_path):
-                    logging.info(f"CLEAN file exists, skipping cleaning: {clean_path}")
-                else:
-                    logging.info("CLEAN file not found -> cleaning")
-                    clean_dat(dat_path, clean_path)
-                logging.info(
-                    "Clean step took %.2f seconds",
-                    time.perf_counter() - clean_start,
-                )
-
-                # ---------------- LOAD ---------------- #
-                logging.info("Loading into staging")
-                load_start = time.perf_counter()
-                deleted_staging = await delete_staging_for_date(session, file_date_obj)
-                if deleted_staging:
+                if settings.SINGLE_PASS_LOAD and not clean_file_cached:
+                    # ── FAST PATH ──────────────────────────────────────────
+                    # Parse raw file + COPY into Postgres in one streaming pass.
+                    # A thread pool worker reads/normalises lines while asyncpg
+                    # COPY runs concurrently on the event loop – true parallelism.
                     logging.info(
-                        f"Replaced staging snapshot for {file_date}; "
-                        f"deleted {deleted_staging} old rows"
+                        "Mode: single-pass stream (no intermediate file) [SINGLE_PASS_LOAD=True]"
+                    )
+                    rows_loaded = await stream_load_to_staging(
+                        session,
+                        dat_path,
+                        file_date_obj,
+                        batch_size=settings.COPY_BATCH_SIZE,
+                        max_rows=max_rows,
+                    )
+                    logging.info(
+                        "Single-pass load done: %d rows in %.2fs (batch_size=%d)",
+                        rows_loaded,
+                        time.perf_counter() - load_start,
+                        settings.COPY_BATCH_SIZE,
                     )
 
-                await copy_to_staging(
-                    session,
-                    clean_path,
-                    file_date_obj,
-                    batch_size=settings.COPY_BATCH_SIZE,
-                    max_rows=max_rows,
-                )
+                else:
+                    # ── FALLBACK PATH ──────────────────────────────────────
+                    # Write / reuse a clean intermediate file, then COPY.
+                    # Useful when the clean file is already cached from a
+                    # previous run and SINGLE_PASS_LOAD is False.
+                    t_clean = time.perf_counter()
+                    if clean_file_cached:
+                        logging.info("Clean file cached, skipping cleaning: %s", clean_path)
+                    else:
+                        logging.info("Clean file not found → cleaning")
+                        clean_dat(dat_path, clean_path)
+                    logging.info("Clean step: %.2fs", time.perf_counter() - t_clean)
 
-                row_count = await get_staging_count(session, file_date_obj)
-                logging.info(f"Rows in staging for {file_date}: {row_count}")
-                logging.info(
-                    "Load step took %.2f seconds (batch_size=%s)",
-                    time.perf_counter() - load_start,
-                    settings.COPY_BATCH_SIZE,
-                )
+                    t_copy = time.perf_counter()
+                    rows_loaded = await copy_to_staging(
+                        session,
+                        clean_path,
+                        file_date_obj,
+                        batch_size=settings.COPY_BATCH_SIZE,
+                        max_rows=max_rows,
+                    )
+                    logging.info(
+                        "Copy-from-file load done: %d rows in %.2fs (batch_size=%d)",
+                        rows_loaded,
+                        time.perf_counter() - t_copy,
+                        settings.COPY_BATCH_SIZE,
+                    )
+
+                # ──────────────────── POST-LOAD ──────────────────── #
+                if settings.ENABLE_POST_LOAD_COUNT:
+                    row_count = await get_staging_count(session, file_date_obj)
+                    logging.info(
+                        "Verified %d rows in staging for %s", row_count, resolved_file_date
+                    )
 
                 logging.info(
-                    "Pipeline completed successfully in %.2f seconds",
+                    "Pipeline completed in %.2fs",
                     time.perf_counter() - pipeline_start,
                 )
 
-            except Exception as e:
-                logging.exception(f"Pipeline failed for {file_date}: {e}")
+            except Exception as exc:
+                logging.exception("Pipeline failed for %s: %s", file_date, exc)
                 raise
 
 
 async def run_pipeline(file_date: str) -> None:
-    # Keep execution on FastAPI's running event loop.
     await run_pipeline_async(file_date)
 
 
 if __name__ == "__main__":
     today = datetime.now()
     file_date = today.strftime("%Y%m01")
-
     asyncio.run(run_pipeline(file_date))

@@ -15,10 +15,26 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     REFRESH_COOKIE_SECURE: bool = False  # For local testing only; set to True in production
 
+    # ---------------- DATABASE POOL ---------------- #
+    # Size of the connection pool kept alive between requests.
+    DB_POOL_SIZE: int = 5
+    # Extra connections allowed above pool_size under burst load.
+    DB_MAX_OVERFLOW: int = 10
+    # Recycle connections after this many seconds to avoid stale connections.
+    DB_POOL_RECYCLE: int = 3600
+
     # ---------------- PIPELINE ---------------- #
     DOWNLOAD_FOLDER: str = "./data"
     LIMIT_ROWS: int | None = 10
-    COPY_BATCH_SIZE: int = 200000
+    # Number of records per asyncpg COPY batch. Tune based on available RAM.
+    COPY_BATCH_SIZE: int = 200_000
+    # When True, skip writing an intermediate clean file; parse raw .dat and
+    # stream directly into Postgres COPY in a single pass (fastest path).
+    SINGLE_PASS_LOAD: bool = True
+    # Fallback: trust that the clean file has exactly 142 columns per row.
+    TRUST_CLEANED_PIPE_ROWS: bool = True
+    # Run COUNT(*) after load (expensive on large tables; off by default).
+    ENABLE_POST_LOAD_COUNT: bool = False
     RETRIES: int = 3
     TIMEOUT: int = 60
 
