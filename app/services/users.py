@@ -37,9 +37,9 @@ async def create_user_service(db: AsyncSession, admin, payload) -> Dict:
 		raise RuntimeError(f"create_user_service failed: {exception}")
 
 
-async def list_auth_events(db: AsyncSession, limit: int = 100):
+async def list_auth_events(db: AsyncSession, limit: int = 100, offset: int = 0):
 	try:
-		auth_events = await db.execute(select(AuthEvents).order_by(desc(AuthEvents.happened_at)).limit(limit))
+		auth_events = await db.execute(select(AuthEvents).order_by(desc(AuthEvents.happened_at)).limit(limit).offset(offset))
 		rows = auth_events.scalars().all()
 		result = []
 		for row in rows:

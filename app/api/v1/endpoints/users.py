@@ -1,10 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import insert, select
+from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_db, get_current_admin
 from app.services.users import create_user_service, list_auth_events, list_users_service, get_user_service, soft_delete_user_service
-from app.schemas.users import UserCreate, UserOut
-from fastapi import HTTPException, status
+from app.schemas.users import UserCreate
 
 
 router = APIRouter()
@@ -31,17 +30,27 @@ async def create_user(
 
 
 @router.get("/events")
-async def list_events(admin=Depends(get_current_admin), db: AsyncSession = Depends(get_db)):
+async def list_events(
+    admin=Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+    limit: int = Query(100, ge=1, description="Max number of events to return"),
+    offset: int = Query(0, ge=0, description="Number of events to skip"),
+):
     try:
-        return await list_auth_events(db)
+        return await list_auth_events(db, limit=limit, offset=offset)
     except RuntimeError as exception:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exception))
 
 
 @router.get("/")
-async def list_users(admin=Depends(get_current_admin), db: AsyncSession = Depends(get_db)):
+async def list_users(
+    admin=Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+    limit: int = Query(100, ge=1, description="Max number of users to return"),
+    offset: int = Query(0, ge=0, description="Number of users to skip"),
+):
     try:
-        return await list_users_service(db)
+        return await list_users_service(db, limit=limit, offset=offset)
     except RuntimeError as exception:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exception))
 
