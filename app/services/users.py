@@ -1,6 +1,6 @@
 from typing import Dict
 import uuid
-from sqlalchemy import insert, select, update, desc
+from sqlalchemy import insert, select, update, desc, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.users import Users
 from app.core.security import hash_password, generate_temp_password
@@ -37,9 +37,13 @@ async def create_user_service(db: AsyncSession, admin, payload) -> Dict:
 		raise RuntimeError(f"create_user_service failed: {exception}")
 
 
-async def list_auth_events(db: AsyncSession, limit: int = 100, offset: int = 0):
+async def list_auth_events(db: AsyncSession, limit: int = 100, offset: int = 0, search_query: str | None = None):
 	try:
-		auth_events = await db.execute(select(AuthEvents).order_by(desc(AuthEvents.happened_at)).limit(limit).offset(offset))
+		query_stmt = select(AuthEvents).order_by(desc(AuthEvents.happened_at))
+		if search_query:
+			# match event_type exactly OR partial match in note
+			query_stmt = query_stmt.where(or_(AuthEvents.event_type == search_query, AuthEvents.note.ilike(f"%{search_query}%")))
+		auth_events = await db.execute(query_stmt.limit(limit).offset(offset))
 		rows = auth_events.scalars().all()
 		result = []
 		for row in rows:
@@ -62,9 +66,16 @@ async def list_auth_events(db: AsyncSession, limit: int = 100, offset: int = 0):
 
 
 
-async def list_users_service(db: AsyncSession, limit: int = 100, offset: int = 0):
+async def list_users_service(db: AsyncSession, limit: int = 100, offset: int = 0, search_query: str | None = None):
 	try:
-		users = await db.execute(select(Users).limit(limit).offset(offset))
+		query_stmt = select(Users)
+		if search_query:
+			# partial, case-insensitive match against full_name, email or username
+			query_stmt = query_stmt.where(
+				or_(Users.full_name.ilike(f"%{search_query}%"), Users.email.ilike(f"%{search_query}%"), Users.username.ilike(f"%{search_query}%"))
+			)
+		query_stmt = query_stmt.limit(limit).offset(offset)
+		users = await db.execute(query_stmt)
 		rows = users.scalars().all()
 		result = []
 		for user in rows:

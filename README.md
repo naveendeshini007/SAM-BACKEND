@@ -62,7 +62,7 @@ Note: Can run by python main.py but not recommended
 python - <<'PY'
 from passlib.context import CryptContext
 pwd = CryptContext(schemes=['bcrypt'], deprecated='auto')
-print(pwd.hash('your-temporary-password'))
+print(pwd.hash('tempswrd'))
 PY
 
 # inside psql, run (replace values):

@@ -35,9 +35,10 @@ async def list_events(
     db: AsyncSession = Depends(get_db),
     limit: int = Query(100, ge=1, description="Max number of events to return"),
     offset: int = Query(0, ge=0, description="Number of events to skip"),
+    search_query: Optional[str] = Query(None, description="Search query matching event_type or partial note text"),
 ):
     try:
-        return await list_auth_events(db, limit=limit, offset=offset)
+        return await list_auth_events(db, limit=limit, offset=offset, search_query=search_query)
     except RuntimeError as exception:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exception))
 
@@ -48,9 +49,10 @@ async def list_users(
     db: AsyncSession = Depends(get_db),
     limit: int = Query(100, ge=1, description="Max number of users to return"),
     offset: int = Query(0, ge=0, description="Number of users to skip"),
+    search_query: Optional[str] = Query(None, description="Search query matching name, username or email"),
 ):
     try:
-        return await list_users_service(db, limit=limit, offset=offset)
+        return await list_users_service(db, limit=limit, offset=offset, search_query=search_query)
     except RuntimeError as exception:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exception))
 
