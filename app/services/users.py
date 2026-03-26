@@ -1,10 +1,11 @@
 from typing import Dict
 import uuid
-from sqlalchemy import insert, select, update
+from sqlalchemy import insert, select, update, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.users import Users
 from app.core.security import hash_password, generate_temp_password
 from app.core.log_event import log_auth_event
+from app.models.auth_events import AuthEvents
 
 
 async def create_user_service(db: AsyncSession, admin, payload) -> Dict:
@@ -38,9 +39,6 @@ async def create_user_service(db: AsyncSession, admin, payload) -> Dict:
 
 async def list_auth_events(db: AsyncSession, limit: int = 100):
 	try:
-		from sqlalchemy import desc
-		from app.models.auth_events import AuthEvents
-
 		auth_events = await db.execute(select(AuthEvents).order_by(desc(AuthEvents.happened_at)).limit(limit))
 		rows = auth_events.scalars().all()
 		result = []
