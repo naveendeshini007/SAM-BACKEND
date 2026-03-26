@@ -1,9 +1,7 @@
 from typing import Dict
 import uuid
-
 from sqlalchemy import insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.models.users import Users
 from app.core.security import hash_password, generate_temp_password
 from app.core.log_event import log_auth_event
@@ -90,9 +88,7 @@ async def list_users_service(db: AsyncSession, limit: int = 100, offset: int = 0
 
 async def get_user_service(db: AsyncSession, user_id: str):
 	try:
-		import uuid as _uuid
-
-		uid = _uuid.UUID(user_id)
+		uid = uuid.UUID(user_id)
 		user_selected = await db.execute(select(Users).where(Users.user_id == uid))
 		user = user_selected.scalars().first()
 		if not user:
@@ -115,9 +111,7 @@ async def get_user_service(db: AsyncSession, user_id: str):
 async def soft_delete_user_service(db: AsyncSession, admin, user_id: str):
 	"""Soft-delete (deactivate) a user by setting is_active=False and rotating token_version."""
 	try:
-		import uuid as _uuid
-
-		uid = _uuid.UUID(user_id)
+		uid = uuid.UUID(user_id)
 		# set is_active = False and bump token_version to invalidate refresh tokens
 		stmt = (
 			update(Users)
