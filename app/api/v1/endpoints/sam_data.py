@@ -55,18 +55,7 @@ async def list_organizations(
         limit=pagination.limit,
     )
 
-# ── Single organization (must come AFTER /search) ─────────────────────────────
-@router.get(
-    "/{record_id}",
-    response_model=SamDataDetailSchema,
-    summary="Get a single organization by record_id",
-)
-async def get_organization(
-    record_id: str,
-    db: AsyncSession = Depends(get_db),
-):
-    return await SamDataService.get_organization_by_id(db, record_id)
-
+# ── Pipeline trigger (must come BEFORE /{record_id}) ─────────────────────────
 @router.get(
     "/download",
     summary="Run full SAM pipeline (download, clean, load)"
@@ -105,4 +94,16 @@ async def download_sam_data(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(exception)
         )
- 
+
+# ── Single organization (must come AFTER all literal paths) ───────────────────
+@router.get(
+    "/{record_id}",
+    response_model=SamDataDetailSchema,
+    summary="Get a single organization by record_id",
+)
+async def get_organization(
+    record_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    return await SamDataService.get_organization_by_id(db, record_id)
+
