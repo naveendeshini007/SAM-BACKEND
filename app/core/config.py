@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     # ---------------- PIPELINE ---------------- #
     DOWNLOAD_FOLDER: str = "./data"
     LIMIT_ROWS: int | None = 10
+    COPY_BATCH_SIZE: int = 200000
     RETRIES: int = 3
     TIMEOUT: int = 60
 

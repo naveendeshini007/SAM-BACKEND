@@ -1,7 +1,4 @@
-import zipfile
-import os
 import logging
-from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -29,19 +26,6 @@ def normalize_sam_pipe_line(line):
         return "|".join(parts) + "\n"
     except Exception as e:
         logger.error("Failed to normalize SAM pipe line: %s", e)
-        raise
-
-
-def extract_zip(zip_path):
-    try:
-        with zipfile.ZipFile(zip_path, 'r') as z:
-            z.extractall(settings.DOWNLOAD_FOLDER)
-            dat_files = [f for f in z.namelist() if f.endswith(".dat")]
-            if not dat_files:
-                raise FileNotFoundError("No .dat file found in SAM zip archive")
-            return dat_files[0]
-    except Exception as e:
-        logger.error("Failed to extract zip file %s: %s", zip_path, e)
         raise
 
 
