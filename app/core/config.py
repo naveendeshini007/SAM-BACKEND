@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "localsecretkey"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
-    REFRESH_COOKIE_SECURE: bool = False
+    REFRESH_COOKIE_SECURE: bool = False  # For local testing only; set to True in production
 
     # ---------------- PIPELINE ---------------- #
     DOWNLOAD_FOLDER: str = "./data"
