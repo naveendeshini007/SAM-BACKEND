@@ -13,7 +13,7 @@ class SamDownloadService:
         self.download_folder = os.getenv("DOWNLOAD_FOLDER", "./data")
         self.retries = 3
         self.timeout = 60
-        self.chunk_size = 8 * 1024 * 1024 
+        self.chunk_size = 16 * 1024 * 1024 
 
         os.makedirs(self.download_folder, exist_ok=True)
 
