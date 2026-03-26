@@ -6,6 +6,7 @@ from app.services.sam_download import SamDownloadService
 from app.services.sam_data_service import SamDataService
 from app.schemas.sam_data import SamDataListSchema, SamDataDetailSchema
 from app.schemas.pagination import PaginationParams, PaginatedResponse
+from app.services.sam_export_service import SamExportService
 
 router = APIRouter()
 
@@ -61,6 +62,21 @@ async def get_organization(
     db: AsyncSession = Depends(get_db),
 ):
     return await SamDataService.get_organization_by_id(db, record_id)
+
+# SAM data export route
+@router.get(
+    "/{record_id}/export",
+    summary="Export specific organization data to CSV or Excel",
+)
+async def export_organization(
+    record_id: str,
+    format: str = Query("csv", regex="^(csv|excel)$", description="File format: csv or excel"),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Retrieves organization details and streams a downloadable file.
+    """
+    return await SamExportService.export_organization(db, record_id, format)
 
 @router.get(
     "/download",

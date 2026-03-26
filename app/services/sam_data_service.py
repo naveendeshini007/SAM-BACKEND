@@ -17,10 +17,9 @@ class SamDataService:
         db: AsyncSession,
         page: int = 1,
         limit: int = 10,
-        search: str | None = None,
-        state: str | None = None,
         year: str | None = None,
         month: str | None = None,
+        **filters
     ) -> dict:
         """
         Unified list + search + filter endpoint.
@@ -34,21 +33,19 @@ class SamDataService:
 
             query = select(SamData)
 
-            # Full-text search across name, city, state
-            if search:
-                term = f"%{search.strip()}%"
-                query = query.where(
-                    or_(
-                        SamData.organization_name.ilike(term),
-                        SamData.city.ilike(term),
-                        SamData.state.ilike(term),
-                        SamData.duns_number.ilike(term),
-                    )
-                )
+            if filters.get("search"):
+                term = f"%{filters['search'].strip()}%"
+                query = query.where(or_(
+                    SamData.organization_name.ilike(term),
+                    SamData.duns_number.ilike(term)
+                ))
 
-            # State filter (exact match, case-insensitive)
-            if state:
-                query = query.where(func.upper(SamData.state) == state.upper())
+            if filters.get("state"):
+                query = query.where(func.upper(SamData.state) == filters["state"].upper())
+            
+            # City Filtration
+            if filters.get("city"):
+                query = query.where(SamData.city.ilike(f"%{filters['city'].strip()}%"))
 
             # Year filter — registration_date is stored as string (e.g. "20230115")
             if year:
