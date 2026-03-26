@@ -16,5 +16,4 @@ class UserOut(BaseModel):
     must_change_password: bool
     is_active: bool
 
-    class Config:
-        orm_mode = True
+    model_config = {"from_attributes": True}

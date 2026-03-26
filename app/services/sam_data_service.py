@@ -1,193 +1,111 @@
-from sqlalchemy import select, or_, func
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.exc import SQLAlchemyError
-from fastapi import HTTPException
+# app/services/sam_data_service.py
 from math import ceil
-from app.schemas.sam_data import SamDataListSchema, SamDataDetailSchema
+
+from fastapi import HTTPException
+from sqlalchemy import func, or_, select
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.sam_data import SamData
+from app.schemas.sam_data import SamDataDetailSchema, SamDataListSchema
+
 
 class SamDataService:
-#GET ORGANIZATIONS
+
     @staticmethod
-    async def get_organizations(
+    async def search_organizations(
         db: AsyncSession,
         page: int = 1,
         limit: int = 10,
-        search: str = None,
-        state: str = None,
-        year: int = None,
-        month: int = None
-    ):
+        search: str | None = None,
+        state: str | None = None,
+        year: str | None = None,
+        month: str | None = None,
+    ) -> dict:
+        """
+        Unified list + search + filter endpoint.
+        All parameters are optional — omitting them returns all records paginated.
+        """
         try:
-            # Input validation
             if page < 1:
                 raise HTTPException(status_code=400, detail="Page must be >= 1")
-
             if limit < 1 or limit > 100:
                 raise HTTPException(status_code=400, detail="Limit must be between 1 and 100")
 
             query = select(SamData)
 
-            # Search
+            # Full-text search across name, city, state
             if search:
+                term = f"%{search.strip()}%"
                 query = query.where(
                     or_(
-                        SamData.organization_name.ilike(f"%{search}%"),
-                        SamData.city.ilike(f"%{search}%"),
-                        SamData.state.ilike(f"%{search}%")
+                        SamData.organization_name.ilike(term),
+                        SamData.city.ilike(term),
+                        SamData.state.ilike(term),
+                        SamData.duns_number.ilike(term),
                     )
                 )
 
-            # Filter (state)
+            # State filter (exact match, case-insensitive)
             if state:
-                query = query.where(SamData.state == state)
+                query = query.where(func.upper(SamData.state) == state.upper())
 
-            # Year filter
+            # Year filter — registration_date is stored as string (e.g. "20230115")
             if year:
-                query = query.where(
-                    SamData.registration_date.startswith(str(year))
-                )
+                query = query.where(SamData.registration_date.startswith(year))
 
-            # Month filter
+            # Month filter — use func.substr to avoid raw Python slicing on DB column
             if month:
-                query = query.where(
-                    SamData.registration_date[4:6] == f"{month:02d}"
-                )
+                # Expects month as zero-padded string e.g. "01", "12"
+                padded_month = month.zfill(2)
+                query = query.where(func.substr(SamData.registration_date, 6, 2) == padded_month)
 
-            #  Efficient total count (NO full data load)
-            count_query = query.with_only_columns(func.count()).order_by(None)
-            total = (await db.execute(count_query)).scalar()
+            # Efficient count without fetching rows
+            count_query = select(func.count()).select_from(query.subquery())
+            total: int = (await db.execute(count_query)).scalar_one()
 
-            #  Pagination
+            # Pagination
             skip = (page - 1) * limit
-            query = query.offset(skip).limit(limit)
+            query = query.order_by(SamData.organization_name).offset(skip).limit(limit)
 
-            result = await db.execute(query)
-            rows = result.scalars().all()
-
+            rows = (await db.execute(query)).scalars().all()
             data = [SamDataListSchema.model_validate(row) for row in rows]
 
-            # Total pages
-            total_pages = ceil(total / limit) if limit else 1
+            total_pages = ceil(total / limit) if total else 1
 
             return {
                 "total": total,
                 "page": page,
                 "limit": limit,
                 "total_pages": total_pages,
-                "data": data
+                "data": data,
             }
 
         except HTTPException:
             raise
+        except SQLAlchemyError as exc:
+            raise HTTPException(status_code=500, detail=f"Database error: {exc}") from exc
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=f"Unexpected error: {exc}") from exc
 
-        except SQLAlchemyError as exception:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Database error: {str(exception)}"
-            )
+    # ── Single record ─────────────────────────────────────────────────────────
 
-        except Exception as exception:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Unexpected error: {str(exception)}"
-            )
-# GET SINGLE ORGANIZATION
     @staticmethod
-    async def get_organization_by_id(
-        db: AsyncSession,
-        record_id: str
-    ):
+    async def get_organization_by_id(db: AsyncSession, record_id: str) -> SamDataDetailSchema:
         try:
-            query = select(SamData).where(SamData.record_id == record_id)
-            result = await db.execute(query)
-
+            result = await db.execute(
+                select(SamData).where(SamData.record_id == record_id)
+            )
             organization = result.scalar_one_or_none()
 
-            if not organization:
-                raise HTTPException(
-                    status_code=404,
-                    detail="Organization not found"
-                )
+            if organization is None:
+                raise HTTPException(status_code=404, detail="Organization not found")
 
             return SamDataDetailSchema.model_validate(organization)
 
         except HTTPException:
             raise
-
-        except SQLAlchemyError as exception:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Database error: {str(exception)}"
-            )
-
-        except Exception as exception:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Unexpected error: {str(exception)}"
-            )
-# SEARCH AND FILTER ORGANIZATIONS
-    @staticmethod
-    async def search_organizations(
-        db: AsyncSession,
-        page: int = 1,
-        limit: int = 10,
-        search : str = None,
-        state: str = None,
-        year: str = None,
-        month: str = None
-    ):
-        try:
-            if page < 1:
-                raise HTTPException(status_code=400, detail="Page must be >= 1")
-            if limit < 1 or limit > 100:
-                raise HTTPException(status_code=400, detail="Limit must be between 1 and 100")
-
-            query = select(SamData)
-
-            if search:
-                query = query.where(
-                    or_(
-                        SamData.organization_name.ilike(f"%{search}%"),
-                        SamData.city.ilike(f"%{search}%"),
-                        SamData.state.ilike(f"%{search}%")
-                    )
-                )
-            if state:
-                query = query.where(
-                    SamData.state == state)
-            if year:
-                query = query.where(
-                    SamData.registration_date.startswith(str(year))
-                )
-            if month:
-                query = query.where(SamData.registration_date[4:6] == f"{month:02d}")
-            
-            count_query = query.with_only_columns(func.count()).order_by(None)
-            total = (await db.execute(count_query)).scalar()
-
-            skip = (page - 1) * limit
-            query = query.offset(skip).limit(limit)
-
-            result = await db.execute(query)
-            rows = result.scalars().all()
-
-            data = [SamDataListSchema.model_validate(row) for row in rows ]
-
-            total_pages = ceil(total/ limit) if limit else 1
-
-            return {
-                "total": total,
-                "page": page,
-                "limit": limit,
-                "total_pages":total_pages,
-                "data": data
-            }
-        
-        except HTTPException as exception:
-            raise
-        except SQLAlchemyError as exception:
-            raise HTTPException(status_code=500, detail=f"Database error: {str(exception)}")
-        except Exception as exception:
-            raise HTTPException(status_code=500, detail=f"Unexpected error:{str(exception)}")
+        except SQLAlchemyError as exc:
+            raise HTTPException(status_code=500, detail=f"Database error: {exc}") from exc
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=f"Unexpected error: {exc}") from exc
