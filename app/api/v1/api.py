@@ -18,10 +18,12 @@ for file in os.listdir(ENDPOINTS_DIR):
         router = getattr(module, "router", None)
 
         if router:
+            url_path = module_name.replace("_", "-")            
+            tag_name = module_name.replace("_", " ").title()
             api_router.include_router(
                 router,
-                prefix=f"/{module_name}",
-                tags=[module_name.capitalize()],
+                prefix=f"/{url_path}",
+                tags=[tag_name],
             )
 
             
