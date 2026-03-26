@@ -1,12 +1,11 @@
-# app/routers/sam_data.py
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
-
+from app.core.database import get_db
+from app.services.sam_download import SamDownloadService
 from app.services.sam_data_service import SamDataService
 from app.schemas.sam_data import SamDataListSchema, SamDataDetailSchema
 from app.schemas.pagination import PaginationParams, PaginatedResponse
-from app.core.database import get_db
 
 router = APIRouter()
 
@@ -32,9 +31,8 @@ async def search_organizations(
         search=search,
         state=state,
         year=year,
-        month=month,
+        month=month
     )
-
 
 # ── List all (no filters) ──────────────────────────────────────────────────────
 @router.get(
@@ -52,7 +50,6 @@ async def list_organizations(
         limit=pagination.limit,
     )
 
-
 # ── Single organization (must come AFTER /search) ─────────────────────────────
 @router.get(
     "/{record_id}",
@@ -64,3 +61,54 @@ async def get_organization(
     db: AsyncSession = Depends(get_db),
 ):
     return await SamDataService.get_organization_by_id(db, record_id)
+
+@router.get(
+    "/download",
+    summary="Download and extract SAM data"
+)
+async def download_sam_data(year: int, month: int):
+    """
+    Download SAM data for given year and month
+    """
+    try:
+        if month < 1 or month > 12:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Month must be between 1 and 12"
+            )
+
+        service = SamDownloadService()
+
+        result = service.download_and_extract(year, month)
+        if result["status"] == "file_not_available":
+            return {
+                "message": "File not available for selected month",
+                "data": result
+            }
+        if result["status"] == "already_exists":
+            return {
+                "message": "File already exists",
+                "data": result
+            }
+        if result["status"] == "extracted_existing_zip":
+            return {
+                "message": "ZIP extracted successfully",
+                "data": result
+            }
+        if result["status"] == "downloaded":
+            return {
+                "message": "Download and extraction successful",
+                "data": result
+            }
+
+        return result
+
+    except HTTPException:
+        raise
+
+    except Exception as exception:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(exception)
+        )
+ 
