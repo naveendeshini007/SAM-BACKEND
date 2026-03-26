@@ -1,9 +1,10 @@
 import uuid
-from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy import Column, String, DateTime, ForeignKey, CheckConstraint, Index,Integer,Numeric
-from sqlalchemy.sql import func
-from sqlalchemy.orm import Mapped, mapped_column
 
+from sqlalchemy import DateTime, Index, Integer, String, Numeric
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.sql import func
+from sqlalchemy import ForeignKey
 
 from app.db.base import Base
 
@@ -12,54 +13,25 @@ class SamData(Base):
     __tablename__ = "sam_data"
 
     sam_data_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-
     file_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("files.file_id", ondelete="CASCADE"), nullable=False)
-
-    extracted_at: Mapped[DateTime | None] = mapped_column(DateTime(timezone=True), 
-    server_default=func.now(),nullable=True)
-    extracted_type: Mapped[str] = mapped_column(String(10), nullable=False)
-    extracted_by: Mapped[uuid.UUID] = mapped_column(
-    UUID(as_uuid=True),
-    nullable=False)
-
-    # Core Fields
-    record_id: Mapped[str] = mapped_column(String(50), nullable=False)
-    duns_number: Mapped[str | None] = mapped_column(String(50))
-    status_code: Mapped[str | None] = mapped_column(String(10))
-    entity_type: Mapped[str | None] = mapped_column(String(10))
-
-    # Dates
-    registration_date: Mapped[str | None] = mapped_column(String(20))
-    expiration_date: Mapped[str | None] = mapped_column(String(20))
-    last_update_date: Mapped[str | None] = mapped_column(String(20))
-    activation_date: Mapped[str | None] = mapped_column(String(20))
-
-    # Organization Info
-    organization_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    legal_business_name: Mapped[str | None] = mapped_column(String(255))
-    division_name: Mapped[str | None] = mapped_column(String(255))
-
-    # Address
-    address_line1: Mapped[str | None] = mapped_column(String(255))
-    address_line2: Mapped[str | None] = mapped_column(String(255))
-    city: Mapped[str | None] = mapped_column(String(100))
-    state: Mapped[str | None] = mapped_column(String(50))
-    zip_code: Mapped[str | None] = mapped_column(String(20))
-    zip_extension: Mapped[str | None] = mapped_column(String(20))
-    country: Mapped[str | None] = mapped_column(String(50))
-
-    # Business Info
-    congressional_district: Mapped[str | None] = mapped_column(String(20))
-    business_start_date: Mapped[str | None] = mapped_column(String(20))
-    fiscal_year_end: Mapped[str | None] = mapped_column(String(20))
-    website: Mapped[str | None] = mapped_column(String(255))
+    extracted_at: Mapped[DateTime | None] = mapped_column(DateTime(timezone=True), nullable=True, server_default=func.now())
+    extractor_type: Mapped[str] = mapped_column(String(10), nullable=False)
+    extracted_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    C1: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    C2: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    C3: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    C4: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    C5: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    C6: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    C7: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
+    C8: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
+    C9: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
+    C10: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
+    C11: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
+    C12: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    C13: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     __table_args__ = (
-        CheckConstraint("extracted_type IN('admin', 'user')", name="check_extracted_type"),
-
-        Index("idx_sam_data_file", "file_id"),
-        Index("idx_extracted_at", "extracted_at"),
-        Index("idx_org_name", "organization_name"),
-        Index("idx_state", "state"),
+        Index("idx_extracted_file", "file_id"),
+        Index("idx_extracted_extracted_at", "extracted_at"),
     )
-

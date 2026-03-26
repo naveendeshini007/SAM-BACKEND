@@ -23,3 +23,5 @@ for file in os.listdir(ENDPOINTS_DIR):
                 prefix=f"/{module_name}",
                 tags=[module_name.capitalize()],
             )
+
+            
