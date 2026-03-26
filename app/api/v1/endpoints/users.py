@@ -2,8 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_db, get_current_admin
-from app.services.users import create_user_service, list_auth_events
-from app.schemas.users import UserCreate
+from app.services.users import create_user_service, list_auth_events, list_users_service, get_user_service, soft_delete_user_service
+from app.schemas.users import UserCreate, UserOut
 from fastapi import HTTPException, status
 
 
@@ -34,5 +34,32 @@ async def create_user(
 async def list_events(admin=Depends(get_current_admin), db: AsyncSession = Depends(get_db)):
     try:
         return await list_auth_events(db)
+    except RuntimeError as exception:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exception))
+
+
+@router.get("/")
+async def list_users(admin=Depends(get_current_admin), db: AsyncSession = Depends(get_db)):
+    try:
+        return await list_users_service(db)
+    except RuntimeError as exception:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exception))
+
+
+@router.get("/{user_id}")
+async def get_user(user_id: str, admin=Depends(get_current_admin), db: AsyncSession = Depends(get_db)):
+    try:
+        user = await get_user_service(db, user_id)
+        if not user:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        return user
+    except RuntimeError as exception:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exception))
+
+
+@router.delete("/{user_id}")
+async def deactivate_user(user_id: str, admin=Depends(get_current_admin), db: AsyncSession = Depends(get_db)):
+    try:
+        return await soft_delete_user_service(db, admin, user_id)
     except RuntimeError as exception:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exception))

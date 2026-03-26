@@ -34,6 +34,12 @@ async def authenticate_and_login(db: AsyncSession, username_or_email: str, passw
             # no principal found
             return {"error": "invalid_credentials"}
 
+        # ensure account is active
+        if not getattr(target, "is_active", True):
+            # log failure due to inactive account
+            await log_auth_event(db, "admin" if admin else "user", admin.admin_id if admin else user.user_id, "login_failure", False, note="inactive account")
+            return {"error": "account_inactive"}
+
         if not verify_password(password, target.password_hash):
             # log failure
             await log_auth_event(db, "admin" if admin else "user", admin.admin_id if admin else user.user_id, "login_failure", False, note="invalid credentials")
