@@ -42,7 +42,11 @@ async def run_pipeline_async(file_date: str, force_reload: bool = False) -> None
                 # a string like "YYYYMM01". Convert it to a real `datetime.date` for asyncpg.
                 file_date_obj = datetime.strptime(file_date, "%Y%m%d").date()
 
-                logging.info(f"Active LIMIT_ROWS: {settings.LIMIT_ROWS}")
+                max_rows = settings.LIMIT_ROWS
+                if max_rows is None:
+                    logging.info("Active LIMIT_ROWS: ALL (no row limit)")
+                else:
+                    logging.info(f"Active LIMIT_ROWS: {max_rows}")
 
                 if force_reload:
                     deleted_rows = await delete_entities_for_date(session, file_date_obj)
@@ -99,7 +103,7 @@ async def run_pipeline_async(file_date: str, force_reload: bool = False) -> None
                     session,
                     clean_path,
                     file_date_obj,
-                    max_rows=settings.LIMIT_ROWS if settings.LIMIT_ROWS else None,
+                    max_rows=max_rows,
                 )
 
                 row_count = await get_staging_count(session, file_date_obj)
