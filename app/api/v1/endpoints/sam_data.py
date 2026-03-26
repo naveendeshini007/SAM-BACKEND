@@ -92,9 +92,9 @@ async def download_sam_data(year: int, month: int):
     except HTTPException:
         raise
 
-    except Exception as e:
+    except Exception as exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
+            detail=str(exception)
         )
  

@@ -13,6 +13,7 @@ class SamDownloadService:
         self.download_folder = os.getenv("DOWNLOAD_FOLDER", "./data")
         self.retries = 3
         self.timeout = 60
+        self.chunk_size = 8 * 1024 * 1024 
 
         os.makedirs(self.download_folder, exist_ok=True)
 
@@ -46,8 +47,8 @@ class SamDownloadService:
                 detail="Invalid ZIP file"
             )
 
-        except Exception as e:
-            logging.error(f"Extraction failed: {e}")
+        except Exception as exception:
+            logging.error(f"Extraction failed: {exception}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to extract ZIP file"
@@ -116,7 +117,7 @@ class SamDownloadService:
                     r.raise_for_status()
 
                     with open(zip_path, "wb") as f:
-                        for chunk in r.iter_content(1024 * 1024):
+                        for chunk in r.iter_content(self.chunk_size):
                             if chunk:
                                 f.write(chunk)
 
@@ -131,8 +132,8 @@ class SamDownloadService:
                         "status": "downloaded"
                     }
 
-                except requests.exceptions.RequestException as e:
-                    logging.error(f"Retry {attempt + 1} failed: {e}")
+                except requests.exceptions.RequestException as exception:
+                    logging.error(f"Retry {attempt + 1} failed: {exception}")
                     sleep(2 ** attempt)
 
             raise HTTPException(
@@ -143,8 +144,8 @@ class SamDownloadService:
         except HTTPException:
             raise
 
-        except Exception as e:
-            logging.error(e)
+        except Exception as exception:
+            logging.error(exception)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Something went wrong"
