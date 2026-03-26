@@ -356,3 +356,5 @@ async def upsert(session: AsyncSession, file_date: date) -> None:
     )
     await session.commit()
     
+    expire_on_commit=False
+)
