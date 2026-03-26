@@ -1,41 +1,27 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Optional
+from app.core.database import get_db
 from app.services.sam_download import SamDownloadService
 from app.services.sam_data_service import SamDataService
-from app.core.database import get_db
-from typing import Optional
-from app.schemas.pagination import PaginationParams
+from app.schemas.sam_data import SamDataListSchema, SamDataDetailSchema
+from app.schemas.pagination import PaginationParams, PaginatedResponse
 
 router = APIRouter()
 
-#GET ORGANIZATIONS
-@router.get("/organizations")
-async def fetch_organizations(
-    pagination: PaginationParams = Depends(),
-    db: AsyncSession = Depends(get_db),
-):
-    return await SamDataService.get_organizations(
-        db=db,
-        page=pagination.page,
-        limit=pagination.limit
-    )
 
-# GET SINGLE ORGANIZATION
-@router.get("/organizations/{record_id}")
-async def fetch_organization(
-    record_id: str,
-    db: AsyncSession = Depends(get_db)
-):
-    return await SamDataService.get_organization_by_id(db, record_id)
-
-#GET FILTER & SEARCH API  
-@router.get("/organizations/search")
+# ── Search + filter + paginate (must be registered BEFORE /{record_id}) ───────
+@router.get(
+    "/search",
+    response_model=PaginatedResponse[SamDataListSchema],
+    summary="Search and filter organizations with pagination",
+)
 async def search_organizations(
     pagination: PaginationParams = Depends(),
-    search: Optional[str] = None,
-    state: Optional[str] = None,
-    year: Optional[str] = None,
-    month: Optional[str] = None,
+    search: Optional[str] = Query(None, description="Search by name, city, or state"),
+    state: Optional[str] = Query(None, description="Filter by state code (e.g. CA)"),
+    year: Optional[str] = Query(None, description="Filter by registration year (e.g. 2023)"),
+    month: Optional[str] = Query(None, description="Filter by registration month (e.g. 01)"),
     db: AsyncSession = Depends(get_db),
 ):
     return await SamDataService.search_organizations(
@@ -47,6 +33,34 @@ async def search_organizations(
         year=year,
         month=month
     )
+
+# ── List all (no filters) ──────────────────────────────────────────────────────
+@router.get(
+    "",
+    response_model=PaginatedResponse[SamDataListSchema],
+    summary="List all organizations with pagination",
+)
+async def list_organizations(
+    pagination: PaginationParams = Depends(),
+    db: AsyncSession = Depends(get_db),
+):
+    return await SamDataService.search_organizations(
+        db=db,
+        page=pagination.page,
+        limit=pagination.limit,
+    )
+
+# ── Single organization (must come AFTER /search) ─────────────────────────────
+@router.get(
+    "/{record_id}",
+    response_model=SamDataDetailSchema,
+    summary="Get a single organization by record_id",
+)
+async def get_organization(
+    record_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    return await SamDataService.get_organization_by_id(db, record_id)
 
 @router.get(
     "/download",
