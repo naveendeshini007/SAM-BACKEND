@@ -38,24 +38,6 @@ async def search_organizations(
         year=year,
         month=month
     )
-
-# ── List all (no filters) ──────────────────────────────────────────────────────
-@router.get(
-    "",
-    response_model=PaginatedResponse[SamDataListSchema],
-    summary="List all organizations with pagination",
-)
-async def list_organizations(
-    pagination: PaginationParams = Depends(),
-    db: AsyncSession = Depends(get_db),
-):
-    return await SamDataService.search_organizations(
-        db=db,
-        page=pagination.page,
-        limit=pagination.limit,
-    )
-
-# ── Pipeline trigger (must come BEFORE /{record_id}) ─────────────────────────
 @router.get(
     "/download",
     summary="Run full SAM pipeline (download, clean, load)"
@@ -95,7 +77,23 @@ async def download_sam_data(
             detail=str(exception)
         )
 
-# ── Single organization (must come AFTER all literal paths) ───────────────────
+# ── List all (no filters) ──────────────────────────────────────────────────────
+@router.get(
+    "",
+    response_model=PaginatedResponse[SamDataListSchema],
+    summary="List all organizations with pagination",
+)
+async def list_organizations(
+    pagination: PaginationParams = Depends(),
+    db: AsyncSession = Depends(get_db),
+):
+    return await SamDataService.search_organizations(
+        db=db,
+        page=pagination.page,
+        limit=pagination.limit,
+    )
+
+# ── Single organization (must come AFTER /search) ─────────────────────────────
 @router.get(
     "/{record_id}",
     response_model=SamDataDetailSchema,
@@ -106,4 +104,3 @@ async def get_organization(
     db: AsyncSession = Depends(get_db),
 ):
     return await SamDataService.get_organization_by_id(db, record_id)
-
