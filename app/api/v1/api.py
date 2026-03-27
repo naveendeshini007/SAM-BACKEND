@@ -25,3 +25,5 @@ for file in os.listdir(ENDPOINTS_DIR):
                 prefix=f"/{url_path}",
                 tags=[tag_name],
             )
+
+            

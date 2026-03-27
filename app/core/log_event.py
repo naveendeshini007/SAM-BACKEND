@@ -29,3 +29,4 @@ async def log_auth_event(
     )
     await db.execute(stmt)
     await db.commit()
+

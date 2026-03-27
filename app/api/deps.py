@@ -140,3 +140,4 @@ async def get_optional_current_principal(
         raise exception
     except Exception as exception:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exception))
+

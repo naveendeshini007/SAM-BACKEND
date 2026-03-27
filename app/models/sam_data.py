@@ -1,11 +1,14 @@
 import uuid
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy import Column, String, DateTime, ForeignKey, CheckConstraint, Index,Integer,Numeric
+from sqlalchemy import Column, String, Date, DateTime, ForeignKey, CheckConstraint, Index,Integer,Numeric
 from sqlalchemy.sql import func
 from sqlalchemy.orm import Mapped, mapped_column
 
 
 from app.db.base import Base
+
+SAM_PIPE_COLUMN_COUNT = 142
+SAM_PIPE_COLUMNS = [f"col{i}" for i in range(1, SAM_PIPE_COLUMN_COUNT + 1)]
 
 
 class SamData(Base):
@@ -13,14 +16,14 @@ class SamData(Base):
 
     sam_data_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
 
-    file_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("files.file_id", ondelete="CASCADE"), nullable=False)
+    file_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("files.file_id", ondelete="CASCADE"), nullable=True)
 
     extracted_at: Mapped[DateTime | None] = mapped_column(DateTime(timezone=True), 
     server_default=func.now(),nullable=True)
-    extracted_type: Mapped[str] = mapped_column(String(10), nullable=False)
+    extracted_type: Mapped[str] = mapped_column(String(10), nullable=True)
     extracted_by: Mapped[uuid.UUID] = mapped_column(
     UUID(as_uuid=True),
-    nullable=False)
+    nullable=True)
 
     # Core Fields
     record_id: Mapped[str] = mapped_column(String(50), nullable=False)
@@ -53,6 +56,11 @@ class SamData(Base):
     business_start_date: Mapped[str | None] = mapped_column(String(20))
     fiscal_year_end: Mapped[str | None] = mapped_column(String(20))
     website: Mapped[str | None] = mapped_column(String(255))
+    file_date: Mapped[Date | None] = mapped_column(Date, nullable=True)
+
+    # Keep existing named fields unchanged; add raw SAM fields additionally.
+    for i in range(1, 143):
+        locals()[f"col{i}"] = Column(String, nullable=True)
 
     __table_args__ = (
         CheckConstraint("extracted_type IN('admin', 'user')", name="check_extracted_type"),
@@ -62,4 +70,3 @@ class SamData(Base):
         Index("idx_org_name", "organization_name"),
         Index("idx_state", "state"),
     )
-

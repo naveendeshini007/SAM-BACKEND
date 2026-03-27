@@ -1,9 +1,14 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
 from app.core.database import get_db
 from app.services.sam_download import SamDownloadService
 from app.services.sam_data_service import SamDataService
+from app.services.sam_date import SamDateService
+from app.services.pipeline import run_pipeline_service
+from app.core.database import get_db
+from typing import Optional
+from app.schemas.pagination import PaginationParams
 from app.schemas.sam_data import SamDataListSchema, SamDataDetailSchema
 from app.schemas.pagination import PaginationParams, PaginatedResponse
 
@@ -35,11 +40,15 @@ async def search_organizations(
     )
 @router.get(
     "/download",
-    summary="Download and extract SAM data"
+    summary="Run full SAM pipeline (download, clean, load)"
 )
-async def download_sam_data(year: int, month: int):
+async def download_sam_data(
+    background_tasks: BackgroundTasks,
+    year: int,
+    month: int,
+):
     """
-    Download SAM data for given year and month
+    Trigger full pipeline for given year/month.
     """
     try:
         if month < 1 or month > 12:
@@ -48,31 +57,16 @@ async def download_sam_data(year: int, month: int):
                 detail="Month must be between 1 and 12"
             )
 
-        service = SamDownloadService()
+        file_date = SamDateService.get_first_sunday(year, month)
+        background_tasks.add_task(run_pipeline_service, file_date)
 
-        result = service.download_and_extract(year, month)
-        if result["status"] == "file_not_available":
-            return {
-                "message": "File not available for selected month",
-                "data": result
-            }
-        if result["status"] == "already_exists":
-            return {
-                "message": "File already exists",
-                "data": result
-            }
-        if result["status"] == "extracted_existing_zip":
-            return {
-                "message": "ZIP extracted successfully",
-                "data": result
-            }
-        if result["status"] == "downloaded":
-            return {
-                "message": "Download and extraction successful",
-                "data": result
-            }
-
-        return result
+        return {
+            "status": "Pipeline started",
+            "year": year,
+            "month": month,
+            "file_date": file_date,
+            "flow": "download -> extract -> clean -> load",
+        }
 
     except HTTPException:
         raise
