@@ -5,15 +5,15 @@ import time
 from datetime import datetime
 from app.services.extractor import clean_dat
 from app.services.sam_download import SamDownloadService
-
-from app.db.session import (
-    AsyncSessionLocal,
+from app.services.sam_data_loader import (
     copy_to_staging,
     stream_load_to_staging,
     delete_staging_for_date,
     get_staging_count,
     init_db,
 )
+
+from app.db.session import AsyncSessionLocal
 from app.core.config import settings
 
 os.makedirs("logs", exist_ok=True)
