@@ -33,35 +33,6 @@ async def search_organizations(
         year=year,
         month=month
     )
-
-# ── List all (no filters) ──────────────────────────────────────────────────────
-@router.get(
-    "",
-    response_model=PaginatedResponse[SamDataListSchema],
-    summary="List all organizations with pagination",
-)
-async def list_organizations(
-    pagination: PaginationParams = Depends(),
-    db: AsyncSession = Depends(get_db),
-):
-    return await SamDataService.search_organizations(
-        db=db,
-        page=pagination.page,
-        limit=pagination.limit,
-    )
-
-# ── Single organization (must come AFTER /search) ─────────────────────────────
-@router.get(
-    "/{record_id}",
-    response_model=SamDataDetailSchema,
-    summary="Get a single organization by record_id",
-)
-async def get_organization(
-    record_id: str,
-    db: AsyncSession = Depends(get_db),
-):
-    return await SamDataService.get_organization_by_id(db, record_id)
-
 @router.get(
     "/download",
     summary="Download and extract SAM data"
@@ -111,4 +82,31 @@ async def download_sam_data(year: int, month: int):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(exception)
         )
- 
+
+# ── List all (no filters) ──────────────────────────────────────────────────────
+@router.get(
+    "",
+    response_model=PaginatedResponse[SamDataListSchema],
+    summary="List all organizations with pagination",
+)
+async def list_organizations(
+    pagination: PaginationParams = Depends(),
+    db: AsyncSession = Depends(get_db),
+):
+    return await SamDataService.search_organizations(
+        db=db,
+        page=pagination.page,
+        limit=pagination.limit,
+    )
+
+# ── Single organization (must come AFTER /search) ─────────────────────────────
+@router.get(
+    "/{record_id}",
+    response_model=SamDataDetailSchema,
+    summary="Get a single organization by record_id",
+)
+async def get_organization(
+    record_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    return await SamDataService.get_organization_by_id(db, record_id)
